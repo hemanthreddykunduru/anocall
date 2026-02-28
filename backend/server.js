@@ -128,6 +128,10 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("chat-message", { message, username });
   });
 
+  socket.on("typing", ({ roomId, isTyping }) => {
+    socket.to(roomId).emit("typing", { isTyping });
+  });
+
   socket.on("next", () => {
     leaveRoom(socket, io);
     removeFromQueue(socket.id);

@@ -27,6 +27,8 @@ export default function ChatPage() {
     const [cameraOff, setCameraOff] = useState(false);
     const [permGranted, setPermGranted] = useState(false);
     const [permError, setPermError] = useState("");
+    const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+    const typingTimeoutRef = useRef(null);
 
     // WhatsApp Style Features
     const [isSwapped, setIsSwapped] = useState(false);
@@ -65,42 +67,29 @@ export default function ChatPage() {
         const remoteStream = remoteStreamRef.current;
 
         if (isSwapped) {
-            // My face in big screen, Stranger in small
             remoteVideo.srcObject = localStream;
             localVideo.srcObject = remoteStream;
-            remoteVideo.muted = true; // Don't hear myself
-            localVideo.muted = false; // Hear stranger
+            remoteVideo.muted = true;
+            localVideo.muted = false;
         } else {
-            // Stranger in big screen, My face in small
             remoteVideo.srcObject = remoteStream;
             localVideo.srcObject = localStream;
-            remoteVideo.muted = false; // Hear stranger
-            localVideo.muted = true; // Don't hear myself
+            remoteVideo.muted = false;
+            localVideo.muted = true;
         }
     }, [permGranted, isSwapped, status]);
 
     async function requestPermissions() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true,
-            });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStreamRef.current = stream;
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-            }
+            if (localVideoRef.current) localVideoRef.current.srcObject = stream;
             setPermGranted(true);
         } catch (err) {
             if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                setPermError(
-                    "Permission denied. Click the lock icon in your address bar, set Camera & Microphone to Allow, then refresh."
-                );
-            } else if (err.name === "NotFoundError") {
-                setPermError("No camera or microphone found. Please connect a device and refresh.");
-            } else if (err.name === "NotReadableError") {
-                setPermError("Your camera is already in use by another app (Teams, Zoom, Discord, etc.). Close those apps and refresh.");
+                setPermError("Permission denied. Click the lock icon in your address bar and Allow Camera/Mic.");
             } else {
-                setPermError(`Could not access camera/mic: ${err.message}. Make sure you are on http://localhost:3000`);
+                setPermError(`Error: ${err.message}`);
             }
         }
     }
@@ -112,71 +101,58 @@ export default function ChatPage() {
             pcRef.current.close();
             pcRef.current = null;
         }
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = null;
-        }
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+        remoteStreamRef.current = null;
         roomIdRef.current = null;
         setRoomId(null);
     }
 
-    const createPeerConnection = useCallback(
-        (rid, initiator) => {
-            const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-            pcRef.current = pc;
+    const createPeerConnection = useCallback((rid, initiator) => {
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        pcRef.current = pc;
 
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach((track) => {
-                    pc.addTrack(track, localStreamRef.current);
-                });
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                pc.addTrack(track, localStreamRef.current);
+            });
+        }
+
+        pc.onicecandidate = (e) => {
+            if (e.candidate && socketRef.current) {
+                socketRef.current.emit("ice-candidate", { roomId: rid, candidate: e.candidate });
             }
+        };
 
-            pc.onicecandidate = (e) => {
-                if (e.candidate && socketRef.current) {
-                    socketRef.current.emit("ice-candidate", {
-                        roomId: rid,
-                        candidate: e.candidate,
-                    });
-                }
-            };
-
-            pc.ontrack = (e) => {
-                if (e.streams[0]) {
-                    remoteStreamRef.current = e.streams[0];
-                    // Update streams immediately if elements exist
-                    const localVideo = localVideoRef.current;
-                    const remoteVideo = remoteVideoRef.current;
-                    if (localVideo && remoteVideo) {
-                        // Use ref to get the absolute current value inside the closure
-                        if (isSwappedRef.current) {
-                            localVideo.srcObject = e.streams[0];
-                        } else {
-                            remoteVideo.srcObject = e.streams[0];
-                        }
+        pc.ontrack = (e) => {
+            if (e.streams[0]) {
+                remoteStreamRef.current = e.streams[0];
+                const localVideo = localVideoRef.current;
+                const remoteVideo = remoteVideoRef.current;
+                if (localVideo && remoteVideo) {
+                    if (isSwappedRef.current) {
+                        localVideo.srcObject = e.streams[0];
+                    } else {
+                        remoteVideo.srcObject = e.streams[0];
                     }
                 }
-            };
-
-            pc.onconnectionstatechange = () => {
-                if (
-                    pc.connectionState === "disconnected" ||
-                    pc.connectionState === "failed"
-                ) {
-                    addSystemMsg("Connection lost. Click Next to find someone new.");
-                    setStatus("idle");
-                }
-            };
-
-            if (initiator) {
-                pc.createOffer().then((offer) => {
-                    pc.setLocalDescription(offer);
-                    socketRef.current?.emit("offer", { roomId: rid, offer });
-                });
             }
+        };
 
-            return pc;
-        },
-        [addSystemMsg]
-    );
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+                addSystemMsg("Stranger disconnected.");
+                setStatus("idle");
+            }
+        };
+
+        if (initiator) {
+            pc.createOffer().then((offer) => {
+                pc.setLocalDescription(offer);
+                socketRef.current?.emit("offer", { roomId: rid, offer });
+            });
+        }
+        return pc;
+    }, [addSystemMsg]);
 
     useEffect(() => {
         if (!permGranted || !user) return;
@@ -189,7 +165,7 @@ export default function ChatPage() {
 
         socket.on("waiting", () => {
             setStatus("waiting");
-            addSystemMsg("Searching for someone to chat with...");
+            addSystemMsg("Searching for someone...");
         });
 
         socket.on("matched", ({ roomId: rid, initiator }) => {
@@ -197,7 +173,7 @@ export default function ChatPage() {
             setRoomId(rid);
             setStatus("connected");
             setMessages([]);
-            addSystemMsg("Stranger connected! Say hello.");
+            addSystemMsg("Matched! Say hello.");
             createPeerConnection(rid, initiator);
         });
 
@@ -216,13 +192,24 @@ export default function ChatPage() {
 
         socket.on("ice-candidate", async ({ candidate }) => {
             if (!pcRef.current) return;
-            try {
-                await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch { }
+            try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch { }
+        });
+
+        socket.on("chat-message", ({ message, username: sender }) => {
+            setIsPartnerTyping(false);
+            setMessages((prev) => [
+                ...prev,
+                { id: Date.now() + Math.random(), type: "theirs", text: message, sender: sender || "Stranger" },
+            ]);
+        });
+
+        socket.on("typing", ({ isTyping }) => {
+            setIsPartnerTyping(isTyping);
         });
 
         socket.on("partner-left", () => {
-            addSystemMsg("Stranger has disconnected.");
+            addSystemMsg("Stranger left.");
+            setIsPartnerTyping(false);
             closePeerConnection();
             setStatus("idle");
         });
@@ -230,18 +217,6 @@ export default function ChatPage() {
         socket.on("left-room", () => {
             closePeerConnection();
             setStatus("idle");
-        });
-
-        socket.on("chat-message", ({ message, username: sender }) => {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: Date.now() + Math.random(),
-                    type: "theirs",
-                    text: message,
-                    sender: sender || "Stranger",
-                },
-            ]);
         });
 
         socket.emit("find-match");
@@ -254,55 +229,41 @@ export default function ChatPage() {
 
     function handleNext() {
         closePeerConnection();
-        if (socketRef.current) {
-            socketRef.current.emit("next");
-            setTimeout(() => {
-                if (socketRef.current) {
-                    socketRef.current.emit("find-match");
-                }
-            }, 300);
-        }
+        setIsPartnerTyping(false);
+        socketRef.current?.emit("next");
+        setTimeout(() => socketRef.current?.emit("find-match"), 300);
         setStatus("waiting");
-        addSystemMsg("Looking for a new stranger...");
+        addSystemMsg("Looking for next...");
     }
 
     function handleLeave() {
         closePeerConnection();
+        setIsPartnerTyping(false);
         socketRef.current?.emit("leave");
         setStatus("idle");
-        addSystemMsg("You left the session.");
+        addSystemMsg("You left.");
     }
 
     function toggleMute() {
         if (!localStreamRef.current) return;
-        localStreamRef.current.getAudioTracks().forEach((t) => {
-            t.enabled = !t.enabled;
-        });
-        setMuted((m) => !m);
+        localStreamRef.current.getAudioTracks().forEach(t => t.enabled = !t.enabled);
+        setMuted(m => !m);
     }
 
     function toggleCamera() {
         if (!localStreamRef.current) return;
-        localStreamRef.current.getVideoTracks().forEach((t) => {
-            t.enabled = !t.enabled;
-        });
-        setCameraOff((c) => !c);
+        localStreamRef.current.getVideoTracks().forEach(t => t.enabled = !t.enabled);
+        setCameraOff(c => !c);
     }
 
     function sendMessage(e) {
         e?.preventDefault();
         const text = chatInput.trim();
         if (!text || !roomIdRef.current || !socketRef.current) return;
-        socketRef.current.emit("chat-message", {
-            roomId: roomIdRef.current,
-            message: text,
-            username: user?.username,
-        });
-        setMessages((prev) => [
-            ...prev,
-            { id: Date.now() + Math.random(), type: "mine", text },
-        ]);
+        socketRef.current.emit("chat-message", { roomId: roomIdRef.current, message: text, username: user?.username });
+        setMessages(prev => [...prev, { id: Date.now() + Math.random(), type: "mine", text }]);
         setChatInput("");
+        socketRef.current.emit("typing", { roomId: roomIdRef.current, isTyping: false });
     }
 
     function handleChatKey(e) {
@@ -317,16 +278,10 @@ export default function ChatPage() {
         router.replace("/");
     }
 
-    // Drag Handlers
     const onStart = (e) => {
         const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
-        dragStart.current = {
-            x: clientX,
-            y: clientY,
-            initialX: pos.x,
-            initialY: pos.y
-        };
+        dragStart.current = { x: clientX, y: clientY, initialX: pos.x, initialY: pos.y };
         setIsDragging(true);
     };
 
@@ -336,16 +291,10 @@ export default function ChatPage() {
         const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
         const deltaX = clientX - dragStart.current.x;
         const deltaY = clientY - dragStart.current.y;
-
-        setPos({
-            x: dragStart.current.initialX - deltaX, // Subtract because we use 'right' in CSS
-            y: dragStart.current.initialY + deltaY  // Add because we use 'top' in CSS
-        });
+        setPos({ x: dragStart.current.initialX - deltaX, y: dragStart.current.initialY + deltaY });
     }, [isDragging]);
 
-    const onEnd = () => {
-        setIsDragging(false);
-    };
+    const onEnd = () => setIsDragging(false);
 
     useEffect(() => {
         if (isDragging) {
@@ -373,25 +322,11 @@ export default function ChatPage() {
         return (
             <div className="permission-page">
                 <div className="permission-card">
-                    <div className="permission-icon">
-                        <i className="fa-solid fa-video" />
-                    </div>
+                    <div className="permission-icon"><i className="fa-solid fa-video" /></div>
                     <h1 className="permission-title">Camera & Mic Required</h1>
-                    <p className="permission-desc">
-                        PvtCall needs access to your camera and microphone to connect you
-                        with strangers. Your video goes directly peer-to-peer — never
-                        through our servers.
-                    </p>
-                    {permError && (
-                        <div className="alert alert-error" style={{ marginBottom: 16, textAlign: "left" }}>
-                            <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 7 }} />
-                            {permError}
-                        </div>
-                    )}
-                    <button className="permission-btn" onClick={requestPermissions}>
-                        <i className="fa-solid fa-camera" style={{ marginRight: 8 }} />
-                        Allow Camera & Microphone
-                    </button>
+                    <p className="permission-desc">Access required for private video chat.</p>
+                    {permError && <div className="alert alert-error">{permError}</div>}
+                    <button className="permission-btn" onClick={requestPermissions}>Allow Access</button>
                 </div>
             </div>
         );
@@ -401,34 +336,15 @@ export default function ChatPage() {
         <div className="chat-page">
             <header className="chat-header">
                 <div className="header-left">
-                    <span className="header-logo">
-                        <i className="fa-solid fa-video" style={{ marginRight: 8, fontSize: 16 }} />
-                        PvtCall
-                    </span>
-                    <div
-                        className={`status-badge ${status === "connected"
-                            ? "connected"
-                            : status === "waiting"
-                                ? "waiting"
-                                : "idle"
-                            }`}
-                    >
+                    <span className="header-logo">PvtCall</span>
+                    <div className={`status-badge ${status}`}>
                         <span className={`status-dot ${status === "waiting" ? "pulse" : ""}`} />
-                        {status === "connected"
-                            ? "Connected"
-                            : status === "waiting"
-                                ? "Finding..."
-                                : "Idle"}
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
                     </div>
                 </div>
                 <div className="header-right">
-                    <div className="user-chip">
-                        <i className="fa-solid fa-user" style={{ marginRight: 6, fontSize: 12 }} />
-                        {user.username}
-                    </div>
-                    <button className="icon-btn danger" title="Logout" onClick={handleLogout}>
-                        <i className="fa-solid fa-right-from-bracket" />
-                    </button>
+                    <div className="user-chip">{user.username}</div>
+                    <button className="icon-btn danger" onClick={handleLogout}><i className="fa-solid fa-right-from-bracket" /></button>
                 </div>
             </header>
 
@@ -436,125 +352,41 @@ export default function ChatPage() {
                 <div className="video-area">
                     {status !== "connected" && (
                         <div className="video-placeholder">
-                            <div className="video-placeholder-icon">
-                                <i className="fa-solid fa-satellite-dish" />
-                            </div>
-                            <div className="video-placeholder-text">
-                                {status === "waiting"
-                                    ? "Searching for a stranger..."
-                                    : "Ready to chat"}
-                            </div>
-                            <div className="video-placeholder-sub">
-                                {status === "idle"
-                                    ? "Click Start to begin matching"
-                                    : "Hang tight, pairing you up..."}
-                            </div>
+                            <div className="video-placeholder-icon"><i className="fa-solid fa-satellite-dish" /></div>
+                            <div className="video-placeholder-text">{status === "waiting" ? "Searching..." : "Ready"}</div>
                         </div>
                     )}
 
-                    <video
-                        ref={remoteVideoRef}
-                        className="video-remote"
-                        autoPlay
-                        playsInline
-                        style={{ display: status === "connected" ? "block" : "none" }}
-                    />
-
-                    {status === "waiting" && (
-                        <div className="finding-overlay">
-                            <div className="big-spinner" />
-                            <div className="finding-title">Finding a Stranger</div>
-                            <div className="finding-sub">Connecting you anonymously...</div>
-                        </div>
-                    )}
+                    <video ref={remoteVideoRef} className="video-remote" autoPlay playsInline style={{ display: status === "connected" ? "block" : "none" }} />
 
                     <div
                         className="video-local-wrap"
-                        style={{
-                            top: `${pos.y}px`,
-                            right: `${pos.x}px`,
-                            cursor: isDragging ? 'grabbing' : 'grab'
-                        }}
-                        onMouseDown={onStart}
-                        onTouchStart={onStart}
-                        onClick={() => !isDragging && setIsSwapped(!isSwapped)}
+                        style={{ top: `${pos.y}px`, right: `${pos.x}px`, cursor: isDragging ? 'grabbing' : 'grab' }}
+                        onMouseDown={onStart} onTouchStart={onStart} onClick={() => !isDragging && setIsSwapped(!isSwapped)}
                     >
-                        <video
-                            ref={localVideoRef}
-                            className="video-local"
-                            autoPlay
-                            playsInline
-                            muted
-                        />
+                        <video ref={localVideoRef} className="video-local" autoPlay playsInline muted />
                         <div className="swap-tip">Tap to swap</div>
                     </div>
 
                     <div className="video-controls">
-                        <button
-                            className={`ctrl-btn ${muted ? "off" : "active"}`}
-                            onClick={toggleMute}
-                        >
-                            <span className="ctrl-icon">
-                                <i className={`fa-solid ${muted ? "fa-microphone-slash" : "fa-microphone"}`} />
-                            </span>
-                            <span className="ctrl-label">{muted ? "Unmute" : "Mute"}</span>
-                        </button>
-
-                        <button
-                            className={`ctrl-btn ${cameraOff ? "off" : "active"}`}
-                            onClick={toggleCamera}
-                        >
-                            <span className="ctrl-icon">
-                                <i className={`fa-solid ${cameraOff ? "fa-video-slash" : "fa-video"}`} />
-                            </span>
-                            <span className="ctrl-label">{cameraOff ? "Cam On" : "Cam Off"}</span>
-                        </button>
-
-                        {status === "idle" ? (
-                            <button className="ctrl-btn next" onClick={handleNext}>
-                                <span className="ctrl-icon">
-                                    <i className="fa-solid fa-play" />
-                                </span>
-                                <span className="ctrl-label">Start</span>
-                            </button>
-                        ) : (
-                            <button className="ctrl-btn next" onClick={handleNext}>
-                                <span className="ctrl-icon">
-                                    <i className="fa-solid fa-forward-step" />
-                                </span>
-                                <span className="ctrl-label">Next</span>
-                            </button>
-                        )}
-
-                        <button className="ctrl-btn end" onClick={handleLeave}>
-                            <span className="ctrl-icon">
-                                <i className="fa-solid fa-stop" />
-                            </span>
-                            <span className="ctrl-label">End</span>
-                        </button>
+                        <button className={`ctrl-btn ${muted ? "off" : "active"}`} onClick={toggleMute}><i className={`fa-solid ${muted ? "fa-microphone-slash" : "fa-microphone"}`} /></button>
+                        <button className={`ctrl-btn ${cameraOff ? "off" : "active"}`} onClick={toggleCamera}><i className={`fa-solid ${cameraOff ? "fa-video-slash" : "fa-video"}`} /></button>
+                        <button className="ctrl-btn next" onClick={handleNext}><i className="fa-solid fa-forward-step" /></button>
+                        <button className="ctrl-btn end" onClick={handleLeave}><i className="fa-solid fa-stop" /></button>
                     </div>
                 </div>
 
                 <aside className="sidebar">
                     <div className="sidebar-header">
-                        <i className="fa-solid fa-comment" style={{ fontSize: 15, color: "var(--text-secondary)" }} />
+                        <i className="fa-solid fa-comment" />
                         <span className="sidebar-title">Chat</span>
                     </div>
 
                     <div className="chat-msgs">
-                        {messages.length === 0 && (
-                            <div className="chat-msg system">
-                                <div className="msg-bubble">Messages appear here once connected.</div>
-                            </div>
-                        )}
+                        {messages.length === 0 && <div className="chat-msg system"><div className="msg-bubble">Say hi!</div></div>}
                         {messages.map((msg) => (
                             <div key={msg.id} className={`chat-msg ${msg.type}`}>
-                                {msg.type === "theirs" && (
-                                    <span className="msg-sender">{msg.sender}</span>
-                                )}
-                                {msg.type === "mine" && (
-                                    <span className="msg-sender">You</span>
-                                )}
+                                {msg.type !== "system" && <span className="msg-sender">{msg.type === "mine" ? "You" : msg.sender}</span>}
                                 <div className="msg-bubble">{msg.text}</div>
                             </div>
                         ))}
@@ -562,24 +394,28 @@ export default function ChatPage() {
                     </div>
 
                     <div className="chat-input-area">
-                        <textarea
-                            className="chat-input"
-                            placeholder={
-                                status === "connected" ? "Type a message..." : "Connect to chat..."
-                            }
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyDown={handleChatKey}
-                            disabled={status !== "connected"}
-                            rows={1}
-                        />
-                        <button
-                            className="send-btn"
-                            onClick={sendMessage}
-                            disabled={status !== "connected" || !chatInput.trim()}
-                        >
-                            <i className="fa-solid fa-paper-plane" style={{ fontSize: 15 }} />
-                        </button>
+                        {isPartnerTyping && <div className="typing-indicator"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />Stranger is typing...</div>}
+                        <div className="chat-input-row">
+                            <textarea
+                                className="chat-input"
+                                placeholder="Type..."
+                                value={chatInput}
+                                onChange={(e) => {
+                                    setChatInput(e.target.value);
+                                    if (roomIdRef.current && socketRef.current) {
+                                        socketRef.current.emit("typing", { roomId: roomIdRef.current, isTyping: true });
+                                        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                        typingTimeoutRef.current = setTimeout(() => {
+                                            socketRef.current?.emit("typing", { roomId: roomIdRef.current, isTyping: false });
+                                        }, 1500);
+                                    }
+                                }}
+                                onKeyDown={handleChatKey}
+                                disabled={status !== "connected"}
+                                rows={1}
+                            />
+                            <button className="send-btn" onClick={sendMessage} disabled={status !== "connected" || !chatInput.trim()}><i className="fa-solid fa-paper-plane" /></button>
+                        </div>
                     </div>
                 </aside>
             </div>
