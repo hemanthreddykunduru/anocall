@@ -377,7 +377,7 @@ BCRYPT_SALT_ROUNDS=10
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/anocall.git
+git clone https://github.com/hemanthreddykunduru/anocall.git
 cd anocall
 ```
 
