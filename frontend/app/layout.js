@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-    title: "PvtCall — Private Video Chat",
+    title: "PvtCall",
     description: "Anonymous 1-to-1 random video chat. Login, get matched, talk.",
 };
 
