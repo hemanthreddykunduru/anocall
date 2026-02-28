@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pvt-call-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: SUPABASE_URL
+        value: https://avmimgvnndaxszbmouah.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BCRYPT_ROUNDS
+        value: "12"
