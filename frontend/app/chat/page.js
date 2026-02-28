@@ -16,6 +16,7 @@ export default function ChatPage() {
     const remoteVideoRef = useRef(null);
     const chatEndRef = useRef(null);
     const roomIdRef = useRef(null);
+    const remoteStreamRef = useRef(null);
 
     const [user, setUser] = useState(null);
     const [status, setStatus] = useState("idle");
@@ -26,6 +27,12 @@ export default function ChatPage() {
     const [cameraOff, setCameraOff] = useState(false);
     const [permGranted, setPermGranted] = useState(false);
     const [permError, setPermError] = useState("");
+
+    // WhatsApp Style Features
+    const [isSwapped, setIsSwapped] = useState(false);
+    const [pos, setPos] = useState({ x: 16, y: 16 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStart = useRef({ x: 0, y: 0, initialX: 0, initialY: 0 });
 
     useEffect(() => {
         const stored = sessionStorage.getItem("user");
@@ -48,10 +55,27 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
-        if (permGranted && localStreamRef.current && localVideoRef.current) {
-            localVideoRef.current.srcObject = localStreamRef.current;
+        if (!permGranted || !localVideoRef.current || !remoteVideoRef.current) return;
+
+        const localVideo = localVideoRef.current;
+        const remoteVideo = remoteVideoRef.current;
+        const localStream = localStreamRef.current;
+        const remoteStream = remoteStreamRef.current;
+
+        if (isSwapped) {
+            // My face in big screen, Stranger in small
+            remoteVideo.srcObject = localStream;
+            localVideo.srcObject = remoteStream;
+            remoteVideo.muted = true; // Don't hear myself
+            localVideo.muted = false; // Hear stranger
+        } else {
+            // Stranger in big screen, My face in small
+            remoteVideo.srcObject = remoteStream;
+            localVideo.srcObject = localStream;
+            remoteVideo.muted = false; // Hear stranger
+            localVideo.muted = true; // Don't hear myself
         }
-    }, [permGranted]);
+    }, [permGranted, isSwapped, status]);
 
     async function requestPermissions() {
         try {
@@ -114,8 +138,16 @@ export default function ChatPage() {
             };
 
             pc.ontrack = (e) => {
-                if (remoteVideoRef.current && e.streams[0]) {
-                    remoteVideoRef.current.srcObject = e.streams[0];
+                if (e.streams[0]) {
+                    remoteStreamRef.current = e.streams[0];
+                    const localVideo = localVideoRef.current;
+                    const remoteVideo = remoteVideoRef.current;
+
+                    if (isSwapped) {
+                        if (localVideo) localVideo.srcObject = e.streams[0];
+                    } else {
+                        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
+                    }
                 }
             };
 
@@ -138,7 +170,7 @@ export default function ChatPage() {
 
             return pc;
         },
-        [addSystemMsg]
+        [addSystemMsg, isSwapped]
     );
 
     useEffect(() => {
@@ -280,6 +312,56 @@ export default function ChatPage() {
         router.replace("/");
     }
 
+    // Drag Handlers
+    const onStart = (e) => {
+        const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
+        dragStart.current = {
+            x: clientX,
+            y: clientY,
+            initialX: pos.x,
+            initialY: pos.y
+        };
+        setIsDragging(true);
+    };
+
+    const onMove = useCallback((e) => {
+        if (!isDragging) return;
+        const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
+        const deltaX = clientX - dragStart.current.x;
+        const deltaY = clientY - dragStart.current.y;
+
+        setPos({
+            x: dragStart.current.initialX - deltaX, // Subtract because we use 'right' in CSS
+            y: dragStart.current.initialY + deltaY  // Add because we use 'top' in CSS
+        });
+    }, [isDragging]);
+
+    const onEnd = () => {
+        setIsDragging(false);
+    };
+
+    useEffect(() => {
+        if (isDragging) {
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onEnd);
+            window.addEventListener("touchmove", onMove, { passive: false });
+            window.addEventListener("touchend", onEnd);
+        } else {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onEnd);
+            window.removeEventListener("touchmove", onMove);
+            window.removeEventListener("touchend", onEnd);
+        }
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onEnd);
+            window.removeEventListener("touchmove", onMove);
+            window.removeEventListener("touchend", onEnd);
+        };
+    }, [isDragging, onMove]);
+
     if (!user) return null;
 
     if (!permGranted) {
@@ -381,7 +463,17 @@ export default function ChatPage() {
                         </div>
                     )}
 
-                    <div className="video-local-wrap">
+                    <div
+                        className="video-local-wrap"
+                        style={{
+                            top: `${pos.y}px`,
+                            right: `${pos.x}px`,
+                            cursor: isDragging ? 'grabbing' : 'grab'
+                        }}
+                        onMouseDown={onStart}
+                        onTouchStart={onStart}
+                        onClick={() => !isDragging && setIsSwapped(!isSwapped)}
+                    >
                         <video
                             ref={localVideoRef}
                             className="video-local"
@@ -389,6 +481,7 @@ export default function ChatPage() {
                             playsInline
                             muted
                         />
+                        <div className="swap-tip">Tap to swap</div>
                     </div>
 
                     <div className="video-controls">
