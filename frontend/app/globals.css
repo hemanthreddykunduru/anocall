@@ -905,56 +905,66 @@ input {
   .chat-body {
     flex-direction: column;
     height: 100vh;
-    /* STATIC height for mobile */
     overflow: hidden;
+    position: relative;
   }
 
   .video-area {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100%;
     height: 50vh !important;
-    /* FIXED static height */
-    flex: none !important;
-    position: relative;
+    z-index: 100 !important;
     background: #000;
-    overflow: hidden;
-    z-index: 5;
   }
 
   .sidebar {
-    width: 100%;
+    width: 100% !important;
     height: 50vh !important;
-    /* FIXED static height */
+    margin-top: 50vh;
     flex: none !important;
     border-left: none;
     border-top: 1px solid var(--border);
     background: var(--bg);
     display: flex;
     flex-direction: column;
+    z-index: 10;
   }
 
   .video-local-wrap {
-    width: 100px;
-    height: 140px;
-    top: 12px;
-    right: 12px;
+    width: 90px;
+    height: 125px;
+    top: 10px;
+    right: 10px;
     bottom: unset;
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .video-controls {
-    height: 60px;
+    height: 56px;
     padding: 0 10px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(10px);
   }
 
   .ctrl-btn {
-    padding: 8px 10px;
-    min-width: 50px;
+    padding: 0 12px;
+    min-width: 48px;
+    height: 36px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    justify-content: center;
   }
 
   .ctrl-icon {
-    font-size: 16px;
+    display: none;
   }
 
   .ctrl-label {
-    font-size: 10px;
+    font-size: 13px;
+    opacity: 1;
   }
 
   .chat-msgs {

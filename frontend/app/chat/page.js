@@ -371,8 +371,8 @@ export default function ChatPage() {
                     <div className="video-controls">
                         <button className={`ctrl-btn ${muted ? "off" : "active"}`} onClick={toggleMute}><i className={`fa-solid ${muted ? "fa-microphone-slash" : "fa-microphone"}`} /></button>
                         <button className={`ctrl-btn ${cameraOff ? "off" : "active"}`} onClick={toggleCamera}><i className={`fa-solid ${cameraOff ? "fa-video-slash" : "fa-video"}`} /></button>
-                        <button className="ctrl-btn next" onClick={handleNext}><i className="fa-solid fa-forward-step" /></button>
-                        <button className="ctrl-btn end" onClick={handleLeave}><i className="fa-solid fa-stop" /></button>
+                        <button className="ctrl-btn next" onClick={handleNext}>Next</button>
+                        <button className="ctrl-btn end" onClick={handleLeave}>End</button>
                     </div>
                 </div>
 
