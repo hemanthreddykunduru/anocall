@@ -1,6 +1,5 @@
 -- ============================================================
 -- SUPABASE TABLE SETUP — Run this in Supabase SQL Editor
--- Project: https://avmimgvnndaxszbmouah.supabase.co
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
