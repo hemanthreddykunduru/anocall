@@ -900,19 +900,61 @@ input {
 }
 
 @media (max-width: 768px) {
+  .chat-body {
+    flex-direction: column;
+    height: calc(100vh - 56px);
+  }
+
+  .video-area {
+    height: 45%;
+    flex: none;
+  }
+
   .sidebar {
-    display: none;
+    display: flex;
+    width: 100%;
+    height: 55%;
+    border-left: none;
+    border-top: 1px solid var(--border);
   }
 
   .video-local-wrap {
-    width: 110px;
-    height: 78px;
-    bottom: 80px;
-    right: 10px;
+    width: 100px;
+    height: 140px;
+    bottom: unset;
+    top: 16px;
+    right: 16px;
+    border-radius: var(--radius-lg);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .video-controls {
+    height: 60px;
+    gap: 8px;
+    padding: 0 10px;
   }
 
   .ctrl-btn {
-    padding: 8px 12px;
-    min-width: 52px;
+    padding: 6px 10px;
+    min-width: 48px;
+    border-radius: var(--radius-sm);
+  }
+
+  .ctrl-icon {
+    font-size: 16px;
+  }
+
+  .ctrl-label {
+    font-size: 10px;
+  }
+
+  .chat-msgs {
+    padding: 12px;
+  }
+
+  .msg-bubble {
+    font-size: 13px;
+    padding: 7px 11px;
   }
 }
