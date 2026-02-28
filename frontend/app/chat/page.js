@@ -30,6 +30,7 @@ export default function ChatPage() {
 
     // WhatsApp Style Features
     const [isSwapped, setIsSwapped] = useState(false);
+    const isSwappedRef = useRef(false);
     const [pos, setPos] = useState({ x: 16, y: 16 });
     const [isDragging, setIsDragging] = useState(false);
     const dragStart = useRef({ x: 0, y: 0, initialX: 0, initialY: 0 });
@@ -55,6 +56,7 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
+        isSwappedRef.current = isSwapped;
         if (!permGranted || !localVideoRef.current || !remoteVideoRef.current) return;
 
         const localVideo = localVideoRef.current;
@@ -140,13 +142,16 @@ export default function ChatPage() {
             pc.ontrack = (e) => {
                 if (e.streams[0]) {
                     remoteStreamRef.current = e.streams[0];
+                    // Update streams immediately if elements exist
                     const localVideo = localVideoRef.current;
                     const remoteVideo = remoteVideoRef.current;
-
-                    if (isSwapped) {
-                        if (localVideo) localVideo.srcObject = e.streams[0];
-                    } else {
-                        if (remoteVideo) remoteVideo.srcObject = e.streams[0];
+                    if (localVideo && remoteVideo) {
+                        // Use ref to get the absolute current value inside the closure
+                        if (isSwappedRef.current) {
+                            localVideo.srcObject = e.streams[0];
+                        } else {
+                            remoteVideo.srcObject = e.streams[0];
+                        }
                     }
                 }
             };
@@ -170,7 +175,7 @@ export default function ChatPage() {
 
             return pc;
         },
-        [addSystemMsg, isSwapped]
+        [addSystemMsg]
     );
 
     useEffect(() => {
