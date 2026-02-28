@@ -47,6 +47,12 @@ export default function ChatPage() {
         ]);
     }, []);
 
+    useEffect(() => {
+        if (permGranted && localStreamRef.current && localVideoRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+        }
+    }, [permGranted]);
+
     async function requestPermissions() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -314,10 +320,10 @@ export default function ChatPage() {
                     </span>
                     <div
                         className={`status-badge ${status === "connected"
-                                ? "connected"
-                                : status === "waiting"
-                                    ? "waiting"
-                                    : "idle"
+                            ? "connected"
+                            : status === "waiting"
+                                ? "waiting"
+                                : "idle"
                             }`}
                     >
                         <span className={`status-dot ${status === "waiting" ? "pulse" : ""}`} />

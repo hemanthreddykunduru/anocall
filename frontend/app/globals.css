@@ -902,59 +902,73 @@ input {
 @media (max-width: 768px) {
   .chat-body {
     flex-direction: column;
-    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+    overflow: hidden;
   }
 
   .video-area {
-    height: 45%;
-    flex: none;
+    height: 42%;
+    flex-shrink: 0;
+    position: relative;
   }
 
   .sidebar {
     display: flex;
     width: 100%;
-    height: 55%;
+    height: 58%;
+    flex-grow: 1;
     border-left: none;
     border-top: 1px solid var(--border);
+    overflow: hidden;
   }
 
   .video-local-wrap {
-    width: 100px;
-    height: 140px;
+    width: 90px;
+    height: 120px;
     bottom: unset;
-    top: 16px;
-    right: 16px;
+    top: 12px;
+    right: 12px;
     border-radius: var(--radius-lg);
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    z-index: 10;
   }
 
   .video-controls {
-    height: 60px;
-    gap: 8px;
-    padding: 0 10px;
+    height: 54px;
+    gap: 6px;
+    padding: 0 8px;
+    background: rgba(0, 0, 0, 0.6);
   }
 
   .ctrl-btn {
-    padding: 6px 10px;
-    min-width: 48px;
+    padding: 4px 8px;
+    min-width: 44px;
     border-radius: var(--radius-sm);
   }
 
   .ctrl-icon {
-    font-size: 16px;
+    font-size: 14px;
+    margin-bottom: 2px;
   }
 
   .ctrl-label {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .chat-msgs {
-    padding: 12px;
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
   }
 
   .msg-bubble {
     font-size: 13px;
-    padding: 7px 11px;
+    padding: 6px 10px;
+  }
+
+  .chat-input-area {
+    padding: 10px;
+    background: var(--background);
   }
 }
