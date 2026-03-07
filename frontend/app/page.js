@@ -108,7 +108,7 @@ export default function AuthPage() {
                     <div className="auth-logo-icon">
                         <i className="fa-solid fa-video" style={{ color: "#000", fontSize: 17 }} />
                     </div>
-                    <span className="auth-logo-text">PvtCall</span>
+                    <span className="auth-logo-text">Camcall</span>
                 </div>
 
                 <h1 className="auth-title">

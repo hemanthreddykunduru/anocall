@@ -1,6 +1,6 @@
-# PvtCall - Private Anonymous Video Chat
+# Camcall - Private Anonymous Video Chat
 
-PvtCall is a modern, real-time video and text chatting application that connects you with random strangers securely and anonymously. Built with a focus on privacy, speed, and a premium mobile-first user experience.
+Camcall is a modern, real-time video and text chatting application that connects you with random strangers securely and anonymously. Built with a focus on privacy, speed, and a premium mobile-first user experience.
 
 ## 🚀 Technologies Used & Why
 
@@ -29,7 +29,7 @@ Because `bcrypt` is a **one-way function**. You cannot reverse the hash back int
 
 ## 🌐 Networking: How Users Connect
 
-The networking in PvtCall happens in two distinct parts: **Client-Server (Signaling)** and **Peer-to-Peer (WebRTC)**.
+The networking in Camcall happens in two distinct parts: **Client-Server (Signaling)** and **Peer-to-Peer (WebRTC)**.
 
 ### 1. Client-Server (The Matchmaker)
 When you log in, your browser connects to our Node.js backend using **Socket.IO**. The server acts as a matchmaker. It puts you in a queue, finds another waiting user, and puts you both in a private virtual "room". The server is strictly used for matchmaking and sending text chat messages.

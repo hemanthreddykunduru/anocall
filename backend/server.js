@@ -47,7 +47,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
-  res.send("PvtCall Signaling Server is running...");
+  res.send("Camcall Signaling Server is running...");
 });
 
 app.get("/health", (req, res) => {

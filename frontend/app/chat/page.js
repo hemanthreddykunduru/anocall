@@ -336,7 +336,7 @@ export default function ChatPage() {
         <div className="chat-page">
             <header className="chat-header">
                 <div className="header-left">
-                    <span className="header-logo">PvtCall</span>
+                    <span className="header-logo">Camcall</span>
                     <div className={`status-badge ${status}`}>
                         <span className={`status-dot ${status === "waiting" ? "pulse" : ""}`} />
                         {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -386,7 +386,7 @@ export default function ChatPage() {
                         {messages.length === 0 && <div className="chat-msg system"><div className="msg-bubble">Say hi!</div></div>}
                         {messages.map((msg) => (
                             <div key={msg.id} className={`chat-msg ${msg.type}`}>
-                                {msg.type !== "system" && <span className="msg-sender">{msg.type === "mine" ? "You" : msg.sender}</span>}
+                                {msg.type !== "system" && <span className="msg-sender">{msg.type === "mine" ? "You" : "stranger"}</span>}
                                 <div className="msg-bubble">{msg.text}</div>
                             </div>
                         ))}
