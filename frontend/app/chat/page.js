@@ -471,13 +471,15 @@ export default function ChatPage() {
                     >
                         <video ref={localVideoRef} className="video-local" autoPlay playsInline muted />
                         <div className="swap-tip">Tap to swap</div>
-                        <button
-                            className="cam-switch-btn"
-                            onClick={(e) => { e.stopPropagation(); switchCamera(); }}
-                            title="Switch Camera"
-                        >
-                            <i className="fa-solid fa-rotate" />
-                        </button>
+                        {!isSwapped && (
+                            <button
+                                className="cam-switch-btn"
+                                onClick={(e) => { e.stopPropagation(); switchCamera(); }}
+                                title="Switch Camera"
+                            >
+                                <i className="fa-solid fa-rotate" />
+                            </button>
+                        )}
                     </div>
 
                     <div className="video-controls">
