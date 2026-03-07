@@ -51,6 +51,8 @@ export default function ChatPage() {
     const chatEndRef = useRef(null);
     const roomIdRef = useRef(null);
     const remoteStreamRef = useRef(null);
+    const videoAreaRef = useRef(null);
+    const localVideoWrapRef = useRef(null);
 
     const [user, setUser] = useState(null);
     const [status, setStatus] = useState("idle");
@@ -381,12 +383,24 @@ export default function ChatPage() {
     };
 
     const onMove = useCallback((e) => {
-        if (!isDragging) return;
+        if (!isDragging || !videoAreaRef.current || !localVideoWrapRef.current) return;
         const clientX = e.type.includes("touch") ? e.touches[0].clientX : e.clientX;
         const clientY = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
         const deltaX = clientX - dragStart.current.x;
         const deltaY = clientY - dragStart.current.y;
-        setPos({ x: dragStart.current.initialX - deltaX, y: dragStart.current.initialY + deltaY });
+
+        const area = videoAreaRef.current.getBoundingClientRect();
+        const wrap = localVideoWrapRef.current.getBoundingClientRect();
+
+        let newX = dragStart.current.initialX - deltaX;
+        let newY = dragStart.current.initialY + deltaY;
+
+        // Clamp Y (Top)
+        newY = Math.max(0, Math.min(newY, area.height - wrap.height));
+        // Clamp X (Right)
+        newX = Math.max(0, Math.min(newX, area.width - wrap.width));
+
+        setPos({ x: newX, y: newY });
     }, [isDragging]);
 
     const onEnd = () => setIsDragging(false);
@@ -444,7 +458,7 @@ export default function ChatPage() {
             </header>
 
             <div className="chat-body">
-                <div className="video-area">
+                <div className="video-area" ref={videoAreaRef}>
                     {status !== "connected" && !isSwapped && (
                         <div className="video-placeholder">
                             <div className="video-placeholder-icon"><i className="fa-solid fa-satellite-dish" /></div>
@@ -466,6 +480,7 @@ export default function ChatPage() {
 
                     <div
                         className="video-local-wrap"
+                        ref={localVideoWrapRef}
                         style={{ top: `${pos.y}px`, right: `${pos.x}px`, cursor: isDragging ? 'grabbing' : 'grab' }}
                         onMouseDown={onStart} onTouchStart={onStart} onClick={() => !isDragging && setIsSwapped(!isSwapped)}
                     >
