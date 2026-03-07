@@ -80,18 +80,53 @@ export default function ChatPage() {
     }, [permGranted, isSwapped, status]);
 
     async function requestPermissions() {
+        // Try strict 1080p first
+        const constraints1080 = {
+            video: {
+                width: { ideal: 1920, min: 1920 },
+                height: { ideal: 1080, min: 1080 },
+                frameRate: { ideal: 30, min: 24 },
+                facingMode: "user",
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 48000,
+            },
+        };
+        // Fallback: request 1080p as ideal (no hard min) if camera rejects strict
+        const constraintsBest = {
+            video: {
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                frameRate: { ideal: 30 },
+                facingMode: "user",
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                sampleRate: 48000,
+            },
+        };
+
+        let stream = null;
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localStreamRef.current = stream;
-            if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-            setPermGranted(true);
-        } catch (err) {
-            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                setPermError("Permission denied. Click the lock icon in your address bar and Allow Camera/Mic.");
-            } else {
-                setPermError(`Error: ${err.message}`);
+            stream = await navigator.mediaDevices.getUserMedia(constraints1080);
+        } catch {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraintsBest);
+            } catch (err) {
+                if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                    setPermError("Permission denied. Click the lock icon in your address bar and Allow Camera/Mic.");
+                } else {
+                    setPermError(`Error: ${err.message}`);
+                }
+                return;
             }
         }
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+        setPermGranted(true);
     }
 
     function closePeerConnection() {
@@ -113,7 +148,16 @@ export default function ChatPage() {
 
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((track) => {
-                pc.addTrack(track, localStreamRef.current);
+                const sender = pc.addTrack(track, localStreamRef.current);
+                if (track.kind === "video") {
+                    const params = sender.getParameters();
+                    if (!params.encodings || params.encodings.length === 0) {
+                        params.encodings = [{}];
+                    }
+                    params.encodings[0].maxBitrate = 8_000_000; // 8 Mbps — crisp 1080p
+                    params.encodings[0].maxFramerate = 30;
+                    sender.setParameters(params).catch(() => { });
+                }
             });
         }
 
