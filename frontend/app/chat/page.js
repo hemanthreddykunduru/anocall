@@ -473,7 +473,7 @@ export default function ChatPage() {
                         playsInline
                         style={{
                             display: (status === "connected" || isSwapped) ? "block" : "none",
-                            transform: "scaleX(-1)",
+                            transform: facingMode === "user" ? "scaleX(-1)" : "none",
                             objectFit: "contain",
                         }}
                     />
@@ -484,7 +484,14 @@ export default function ChatPage() {
                         style={{ top: `${pos.y}px`, right: `${pos.x}px`, cursor: isDragging ? 'grabbing' : 'grab' }}
                         onMouseDown={onStart} onTouchStart={onStart} onClick={() => !isDragging && setIsSwapped(!isSwapped)}
                     >
-                        <video ref={localVideoRef} className="video-local" autoPlay playsInline muted />
+                        <video
+                            ref={localVideoRef}
+                            className="video-local"
+                            autoPlay
+                            playsInline
+                            muted
+                            style={{ transform: facingMode === "user" ? "scaleX(-1)" : "none" }}
+                        />
                         <div className="swap-tip">Tap to swap</div>
                         {!isSwapped && (
                             <button
