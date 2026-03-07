@@ -386,7 +386,7 @@ export default function ChatPage() {
                         {messages.length === 0 && <div className="chat-msg system"><div className="msg-bubble">Say hi!</div></div>}
                         {messages.map((msg) => (
                             <div key={msg.id} className={`chat-msg ${msg.type}`}>
-                                {msg.type !== "system" && <span className="msg-sender">{msg.type === "mine" ? "You" : msg.sender}</span>}
+                                {msg.type !== "system" && <span className="msg-sender">{msg.type === "mine" ? "You" : "Stranger"}</span>}
                                 <div className="msg-bubble">{msg.text}</div>
                             </div>
                         ))}
