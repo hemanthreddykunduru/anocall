@@ -181,7 +181,7 @@ export default function AuthPage() {
                 </span>
 
                 <div className="auth-footer">
-                    Developed with 💓 <a href="https://www.devarts.in" target="_blank" rel="noopener noreferrer">devart's</a>
+                    Developed with ❤️ <a href="https://www.devarts.in" target="_blank" rel="noopener noreferrer">devart's</a>
                 </div>
             </div>
 
