@@ -7,6 +7,40 @@ import { io } from "socket.io-client";
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
+// Patch SDP to request high bitrate on the video media section.
+// This tells the remote peer we can RECEIVE up to 8 Mbps (1080p quality).
+function injectHighBitrateSDP(sdp, kbps = 8000) {
+    const lines = sdp.split("\r\n");
+    const out = [];
+    let inVideo = false;
+    let bLineAdded = false;
+    for (const line of lines) {
+        if (line.startsWith("m=video")) {
+            inVideo = true;
+            bLineAdded = false;
+            out.push(line);
+            continue;
+        }
+        if (line.startsWith("m=")) {
+            inVideo = false;
+        }
+        if (inVideo) {
+            // Remove any existing b= lines in the video section
+            if (line.startsWith("b=AS:") || line.startsWith("b=TIAS:")) continue;
+            // Insert b= lines right after the c= line
+            if (line.startsWith("c=") && !bLineAdded) {
+                out.push(line);
+                out.push(`b=AS:${kbps}`);
+                out.push(`b=TIAS:${kbps * 1000}`);
+                bLineAdded = true;
+                continue;
+            }
+        }
+        out.push(line);
+    }
+    return out.join("\r\n");
+}
+
 export default function ChatPage() {
     const router = useRouter();
     const socketRef = useRef(null);
@@ -29,6 +63,9 @@ export default function ChatPage() {
     const [permError, setPermError] = useState("");
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
     const typingTimeoutRef = useRef(null);
+
+    // Camera facing mode (for front/back switch)
+    const [facingMode, setFacingMode] = useState("user");
 
     // WhatsApp Style Features
     const [isSwapped, setIsSwapped] = useState(false);
@@ -80,53 +117,30 @@ export default function ChatPage() {
     }, [permGranted, isSwapped, status]);
 
     async function requestPermissions() {
-        // Try strict 1080p first
-        const constraints1080 = {
-            video: {
-                width: { ideal: 1920, min: 1920 },
-                height: { ideal: 1080, min: 1080 },
-                frameRate: { ideal: 30, min: 24 },
-                facingMode: "user",
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                sampleRate: 48000,
-            },
-        };
-        // Fallback: request 1080p as ideal (no hard min) if camera rejects strict
-        const constraintsBest = {
-            video: {
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                frameRate: { ideal: 30 },
-                facingMode: "user",
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                sampleRate: 48000,
-            },
-        };
-
-        let stream = null;
         try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints1080);
-        } catch {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia(constraintsBest);
-            } catch (err) {
-                if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-                    setPermError("Permission denied. Click the lock icon in your address bar and Allow Camera/Mic.");
-                } else {
-                    setPermError(`Error: ${err.message}`);
-                }
-                return;
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 3840, min: 1280 },
+                    height: { ideal: 2160, min: 720 },
+                    frameRate: { ideal: 60, min: 24 },
+                    facingMode: "user",
+                },
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 48000,
+                },
+            });
+            localStreamRef.current = stream;
+            if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+            setPermGranted(true);
+        } catch (err) {
+            if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                setPermError("Permission denied. Click the lock icon in your address bar and Allow Camera/Mic.");
+            } else {
+                setPermError(`Error: ${err.message}`);
             }
         }
-        localStreamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-        setPermGranted(true);
     }
 
     function closePeerConnection() {
@@ -190,9 +204,12 @@ export default function ChatPage() {
         };
 
         if (initiator) {
-            pc.createOffer().then((offer) => {
-                pc.setLocalDescription(offer);
-                socketRef.current?.emit("offer", { roomId: rid, offer });
+            pc.createOffer().then(async (offer) => {
+                // Patch SDP so the remote peer is allowed to send us 8 Mbps
+                const patchedSDP = injectHighBitrateSDP(offer.sdp);
+                const patchedOffer = new RTCSessionDescription({ type: offer.type, sdp: patchedSDP });
+                await pc.setLocalDescription(patchedOffer);
+                socketRef.current?.emit("offer", { roomId: rid, offer: patchedOffer });
             });
         }
         return pc;
@@ -225,8 +242,11 @@ export default function ChatPage() {
             if (!pcRef.current) return;
             await pcRef.current.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await pcRef.current.createAnswer();
-            await pcRef.current.setLocalDescription(answer);
-            socket.emit("answer", { roomId: roomIdRef.current || "", answer });
+            // Patch answer SDP so we also signal high bitrate for what we send back
+            const patchedSDP = injectHighBitrateSDP(answer.sdp);
+            const patchedAnswer = new RTCSessionDescription({ type: answer.type, sdp: patchedSDP });
+            await pcRef.current.setLocalDescription(patchedAnswer);
+            socket.emit("answer", { roomId: roomIdRef.current || "", answer: patchedAnswer });
         });
 
         socket.on("answer", async ({ answer }) => {
@@ -317,6 +337,37 @@ export default function ChatPage() {
         }
     }
 
+
+
+    async function switchCamera() {
+        const newFacing = facingMode === "user" ? "environment" : "user";
+        setFacingMode(newFacing);
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: newFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                audio: false,
+            });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            // Replace track in peer connection if connected
+            if (pcRef.current) {
+                const sender = pcRef.current.getSenders().find(s => s.track && s.track.kind === "video");
+                if (sender) sender.replaceTrack(newVideoTrack);
+            }
+            // Stop old video track and update local stream
+            if (localStreamRef.current) {
+                localStreamRef.current.getVideoTracks().forEach(t => t.stop());
+                localStreamRef.current.removeTrack(localStreamRef.current.getVideoTracks()[0]);
+            } else {
+                localStreamRef.current = new MediaStream();
+            }
+            localStreamRef.current.addTrack(newVideoTrack);
+            if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+        } catch (err) {
+            console.error("Camera switch failed:", err);
+            setFacingMode(facingMode); // revert
+        }
+    }
+
     function handleLogout() {
         sessionStorage.removeItem("user");
         router.replace("/");
@@ -401,7 +452,17 @@ export default function ChatPage() {
                         </div>
                     )}
 
-                    <video ref={remoteVideoRef} className="video-remote" autoPlay playsInline style={{ display: (status === "connected" || isSwapped) ? "block" : "none" }} />
+                    <video
+                        ref={remoteVideoRef}
+                        className="video-remote"
+                        autoPlay
+                        playsInline
+                        style={{
+                            display: (status === "connected" || isSwapped) ? "block" : "none",
+                            transform: "scaleX(-1)",
+                            objectFit: "contain",
+                        }}
+                    />
 
                     <div
                         className="video-local-wrap"
@@ -410,11 +471,22 @@ export default function ChatPage() {
                     >
                         <video ref={localVideoRef} className="video-local" autoPlay playsInline muted />
                         <div className="swap-tip">Tap to swap</div>
+                        <button
+                            className="cam-switch-btn"
+                            onClick={(e) => { e.stopPropagation(); switchCamera(); }}
+                            title="Switch Camera"
+                        >
+                            <i className="fa-solid fa-rotate" />
+                        </button>
                     </div>
 
                     <div className="video-controls">
-                        <button className={`ctrl-btn ${muted ? "off" : "active"}`} onClick={toggleMute}><i className={`fa-solid ${muted ? "fa-microphone-slash" : "fa-microphone"}`} /></button>
-                        <button className={`ctrl-btn ${cameraOff ? "off" : "active"}`} onClick={toggleCamera}><i className={`fa-solid ${cameraOff ? "fa-video-slash" : "fa-video"}`} /></button>
+                        <button className={`ctrl-btn ${muted ? "off" : "active"}`} onClick={toggleMute}>
+                            <i className={`fa-solid ${muted ? "fa-microphone-slash" : "fa-microphone"}`} />
+                        </button>
+                        <button className={`ctrl-btn ${cameraOff ? "off" : "active"}`} onClick={toggleCamera}>
+                            <i className={`fa-solid ${cameraOff ? "fa-video-slash" : "fa-video"}`} />
+                        </button>
                         <button className="ctrl-btn next" onClick={handleNext}>Next</button>
                         <button className="ctrl-btn end" onClick={handleLeave}>End</button>
                     </div>
