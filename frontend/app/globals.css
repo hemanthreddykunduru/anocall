@@ -910,27 +910,37 @@ input {
 }
 
 @media (max-width: 768px) {
+  .chat-header {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 200 !important;
+    height: 56px;
+  }
+
   .chat-body {
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
     position: relative;
+    padding-top: 56px;
   }
 
   .video-area {
     position: fixed !important;
-    top: 0;
+    top: 56px;
     left: 0;
     width: 100%;
-    height: 50vh !important;
+    height: calc(50vh - 28px) !important;
     z-index: 100 !important;
     background: #000;
   }
 
   .sidebar {
     width: 100% !important;
-    height: 50vh !important;
-    margin-top: 50vh;
+    height: calc(50vh - 28px) !important;
+    margin-top: calc(50vh + 28px);
     flex: none !important;
     border-left: none;
     border-top: 1px solid var(--border);
