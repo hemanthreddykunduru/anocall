@@ -240,8 +240,6 @@ export default function ChatPage() {
             setPartnerFacingMode("user"); // Reset for new partner
             addSystemMsg("Matched! Say hello.");
             createPeerConnection(rid, initiator);
-            // Send current camera mode to partner
-            socket.emit("camera-switch", { roomId: rid, facingMode });
         });
 
         socket.on("offer", async ({ offer }) => {
@@ -300,6 +298,13 @@ export default function ChatPage() {
             socket.disconnect();
         };
     }, [permGranted, user, addSystemMsg, createPeerConnection]);
+
+    // Reactive sync for camera mode
+    useEffect(() => {
+        if (roomId && socketRef.current) {
+            socketRef.current.emit("camera-switch", { roomId, facingMode });
+        }
+    }, [roomId, facingMode]);
 
     function handleNext() {
         closePeerConnection();
@@ -373,10 +378,7 @@ export default function ChatPage() {
             localStreamRef.current.addTrack(newVideoTrack);
             if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
 
-            // Sync with partner
-            if (roomIdRef.current && socketRef.current) {
-                socketRef.current.emit("camera-switch", { roomId: roomIdRef.current, facingMode: newFacing });
-            }
+
         } catch (err) {
             console.error("Camera switch failed:", err);
             setFacingMode(facingMode); // revert
