@@ -68,6 +68,7 @@ export default function ChatPage() {
 
     // Camera facing mode (for front/back switch)
     const [facingMode, setFacingMode] = useState("user");
+    const [partnerFacingMode, setPartnerFacingMode] = useState("user");
 
     // WhatsApp Style Features
     const [isSwapped, setIsSwapped] = useState(false);
@@ -236,8 +237,11 @@ export default function ChatPage() {
             setRoomId(rid);
             setStatus("connected");
             setMessages([]);
+            setPartnerFacingMode("user"); // Reset for new partner
             addSystemMsg("Matched! Say hello.");
             createPeerConnection(rid, initiator);
+            // Send current camera mode to partner
+            socket.emit("camera-switch", { roomId: rid, facingMode });
         });
 
         socket.on("offer", async ({ offer }) => {
@@ -271,6 +275,10 @@ export default function ChatPage() {
 
         socket.on("typing", ({ isTyping }) => {
             setIsPartnerTyping(isTyping);
+        });
+
+        socket.on("camera-switch", ({ facingMode: pFacing }) => {
+            setPartnerFacingMode(pFacing);
         });
 
         socket.on("partner-left", () => {
@@ -364,6 +372,11 @@ export default function ChatPage() {
             }
             localStreamRef.current.addTrack(newVideoTrack);
             if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+
+            // Sync with partner
+            if (roomIdRef.current && socketRef.current) {
+                socketRef.current.emit("camera-switch", { roomId: roomIdRef.current, facingMode: newFacing });
+            }
         } catch (err) {
             console.error("Camera switch failed:", err);
             setFacingMode(facingMode); // revert
@@ -473,7 +486,7 @@ export default function ChatPage() {
                         playsInline
                         style={{
                             display: (status === "connected" || isSwapped) ? "block" : "none",
-                            transform: facingMode === "user" ? "scaleX(-1)" : "none",
+                            transform: partnerFacingMode === "user" ? "scaleX(-1)" : "none",
                             objectFit: "contain",
                         }}
                     />

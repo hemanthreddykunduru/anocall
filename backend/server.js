@@ -132,6 +132,10 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("typing", { isTyping });
   });
 
+  socket.on("camera-switch", ({ roomId, facingMode }) => {
+    socket.to(roomId).emit("camera-switch", { facingMode });
+  });
+
   socket.on("next", () => {
     leaveRoom(socket, io);
     removeFromQueue(socket.id);
