@@ -350,14 +350,14 @@ export default function ChatPage() {
 
             <div className="chat-body">
                 <div className="video-area">
-                    {status !== "connected" && (
+                    {status !== "connected" && !isSwapped && (
                         <div className="video-placeholder">
                             <div className="video-placeholder-icon"><i className="fa-solid fa-satellite-dish" /></div>
                             <div className="video-placeholder-text">{status === "waiting" ? "Searching..." : "Ready"}</div>
                         </div>
                     )}
 
-                    <video ref={remoteVideoRef} className="video-remote" autoPlay playsInline style={{ display: status === "connected" ? "block" : "none" }} />
+                    <video ref={remoteVideoRef} className="video-remote" autoPlay playsInline style={{ display: (status === "connected" || isSwapped) ? "block" : "none" }} />
 
                     <div
                         className="video-local-wrap"
