@@ -179,6 +179,10 @@ export default function AuthPage() {
                     <i className="fa-solid fa-trash-can" style={{ marginRight: 6 }} />
                     Remove my account
                 </span>
+
+                <div className="auth-footer">
+                    Developed with 💓 <a href="https://www.devarts.in" target="_blank" rel="noopener noreferrer">devart's</a>
+                </div>
             </div>
 
             {showDelete && (
